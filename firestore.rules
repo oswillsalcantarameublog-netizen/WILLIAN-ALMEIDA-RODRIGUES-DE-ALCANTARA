@@ -1,0 +1,468 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'marktingdigitalwills@gmail.com'
+      );
+    }
+
+    function isOwnerId(ownerId) {
+      return isVerified() && request.auth.uid == ownerId;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'businessName', 'whatsappNumber', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'businessName', 'whatsappNumber', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 180
+        && data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120
+        && data.whatsappNumber is string && data.whatsappNumber.size() >= 10 && data.whatsappNumber.size() <= 20 && data.whatsappNumber.matches('^[0-9]{10,15}$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll(['uid', 'businessName', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'businessName', 'active', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidServiceItem(data) {
+      return data.keys().hasAll([
+          'ownerId', 'name', 'price', 'category', 'durationMinutes',
+          'description', 'autoConfirmMessageEnabled', 'confirmMessageTemplate',
+          'active', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'price', 'category', 'durationMinutes',
+          'description', 'autoConfirmMessageEnabled', 'confirmMessageTemplate',
+          'active', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.price is number && data.price >= 0 && data.price <= 10000000
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 60
+        && data.durationMinutes is number && data.durationMinutes >= 5 && data.durationMinutes <= 1440
+        && data.description is string && data.description.size() <= 400
+        && data.autoConfirmMessageEnabled is bool
+        && data.confirmMessageTemplate is string && data.confirmMessageTemplate.size() <= 600
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll([
+          'ownerId', 'serviceId', 'serviceName', 'servicePrice',
+          'clientName', 'clientPhone', 'serviceAddress',
+          'scheduledDate', 'scheduledTime', 'notes', 'status',
+          'confirmToken', 'whatsappConfirmedSent', 'whatsappOwnerNotified',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'serviceId', 'serviceName', 'servicePrice',
+          'clientName', 'clientPhone', 'serviceAddress',
+          'scheduledDate', 'scheduledTime', 'notes', 'status',
+          'confirmToken', 'whatsappConfirmedSent', 'whatsappOwnerNotified',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.serviceId)
+        && data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120
+        && data.servicePrice is number && data.servicePrice >= 0 && data.servicePrice <= 10000000
+        && data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 120
+        && data.clientPhone is string && data.clientPhone.size() >= 8 && data.clientPhone.size() <= 25
+        && data.serviceAddress is string && data.serviceAddress.size() >= 3 && data.serviceAddress.size() <= 280
+        && data.scheduledDate is string && data.scheduledDate.size() == 10 && data.scheduledDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.scheduledTime is string && data.scheduledTime.size() == 5 && data.scheduledTime.matches('^\\d{2}:\\d{2}$')
+        && data.notes is string && data.notes.size() <= 500
+        && data.status in ['agendado', 'em_andamento', 'finalizado', 'cancelado']
+        && isValidId(data.confirmToken)
+        && data.whatsappConfirmedSent is bool
+        && data.whatsappOwnerNotified is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidConfirmationTicket(data) {
+      return data.keys().hasAll([
+          'bookingId', 'ownerId', 'serviceName', 'servicePrice',
+          'scheduledDate', 'scheduledTime', 'businessName', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'bookingId', 'ownerId', 'serviceName', 'servicePrice',
+          'scheduledDate', 'scheduledTime', 'businessName', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.bookingId)
+        && isValidId(data.ownerId)
+        && data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120
+        && data.servicePrice is number && data.servicePrice >= 0 && data.servicePrice <= 10000000
+        && data.scheduledDate is string && data.scheduledDate.size() == 10 && data.scheduledDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.scheduledTime is string && data.scheduledTime.size() == 5 && data.scheduledTime.matches('^\\d{2}:\\d{2}$')
+        && data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120
+        && data.status in ['pendente', 'finalizado']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBookingRequest(data) {
+      return data.keys().hasAll([
+          'ownerId', 'serviceId', 'serviceName', 'servicePrice',
+          'clientName', 'clientPhone', 'serviceAddress',
+          'scheduledDate', 'scheduledTime', 'notes', 'processed', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'serviceId', 'serviceName', 'servicePrice',
+          'clientName', 'clientPhone', 'serviceAddress',
+          'scheduledDate', 'scheduledTime', 'notes', 'processed', 'createdAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.serviceId)
+        && data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120
+        && data.servicePrice is number && data.servicePrice >= 0 && data.servicePrice <= 10000000
+        && data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 120
+        && data.clientPhone is string && data.clientPhone.size() >= 8 && data.clientPhone.size() <= 25
+        && data.serviceAddress is string && data.serviceAddress.size() >= 3 && data.serviceAddress.size() <= 280
+        && data.scheduledDate is string && data.scheduledDate.size() == 10 && data.scheduledDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.scheduledTime is string && data.scheduledTime.size() == 5 && data.scheduledTime.matches('^\\d{2}:\\d{2}$')
+        && data.notes is string && data.notes.size() <= 500
+        && data.processed is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCustomSpreadsheet(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'segment', 'groupBy', 'description', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'segment', 'groupBy', 'description', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.segment in ['autonomo', 'empresa', 'servicos', 'financeiro', 'clientes']
+        && data.groupBy in ['nenhum', 'servico', 'data', 'status']
+        && data.description is string && data.description.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSpreadsheetRow(data, sheetId) {
+      return data.keys().hasAll([
+          'ownerId', 'sheetId', 'categoryOrService', 'rowDate',
+          'description', 'clientOrContact', 'phone', 'address',
+          'amount', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'sheetId', 'categoryOrService', 'rowDate',
+          'description', 'clientOrContact', 'phone', 'address',
+          'amount', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.sheetId)
+        && data.sheetId == sheetId
+        && data.categoryOrService is string && data.categoryOrService.size() >= 1 && data.categoryOrService.size() <= 120
+        && data.rowDate is string && data.rowDate.size() == 10 && data.rowDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 200
+        && data.clientOrContact is string && data.clientOrContact.size() <= 120
+        && data.phone is string && data.phone.size() <= 25
+        && data.address is string && data.address.size() <= 280
+        && data.amount is number && data.amount >= -10000000 && data.amount <= 10000000
+        && data.status in ['pendente', 'ativo', 'concluido']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLibrarySheet(data) {
+      return data.keys().hasAll([
+          'ownerId', 'fileName', 'sector', 'subcategory', 'aiSummary',
+          'aiCategorized', 'rowCount', 'totalValue', 'headers', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'fileName', 'sector', 'subcategory', 'aiSummary',
+          'aiCategorized', 'rowCount', 'totalValue', 'headers', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 160
+        && data.sector is string && data.sector.size() >= 1 && data.sector.size() <= 80
+        && data.subcategory is string && data.subcategory.size() >= 1 && data.subcategory.size() <= 120
+        && data.aiSummary is string && data.aiSummary.size() <= 600
+        && data.aiCategorized is bool
+        && data.rowCount is number && data.rowCount >= 0 && data.rowCount <= 5000
+        && data.totalValue is number && data.totalValue >= -100000000 && data.totalValue <= 100000000
+        && data.headers is list && data.headers.size() >= 1 && data.headers.size() <= 25 && data.headers[0] is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLibrarySheetItem(data, sheetId) {
+      return data.keys().hasAll([
+          'ownerId', 'sheetId', 'rowIndex', 'aiCategory', 'values', 'numericAmount', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'sheetId', 'rowIndex', 'aiCategory', 'values', 'numericAmount', 'createdAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.sheetId)
+        && data.sheetId == sheetId
+        && data.rowIndex is number && data.rowIndex >= 0 && data.rowIndex <= 5000
+        && data.aiCategory is string && data.aiCategory.size() >= 1 && data.aiCategory.size() <= 120
+        && data.values is list && data.values.size() >= 1 && data.values.size() <= 25 && data.values[0] is string
+        && data.numericAmount is number && data.numericAmount >= -100000000 && data.numericAmount <= 100000000
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwnerId(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isOwnerId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming())
+        && (isOwnerId(userId) || isAdmin())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'businessName', 'whatsappNumber', 'updatedAt']);
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    match /publicProfiles/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isOwnerId(userId)
+        && isValidPublicProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidPublicProfile(incoming())
+        && (isOwnerId(userId) || isAdmin())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['businessName', 'active', 'updatedAt']);
+      allow delete: if isValidId(userId) && (isOwnerId(userId) || isAdmin());
+    }
+
+    match /services/{serviceId} {
+      allow get: if isValidId(serviceId) && ((isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin())) || existing().active == true);
+      allow list: if (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin())) || resource.data.active == true;
+      allow create: if isValidId(serviceId)
+        && isVerified()
+        && isValidServiceItem(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(serviceId)
+        && isVerified()
+        && isValidServiceItem(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'price', 'category', 'durationMinutes', 'description',
+          'autoConfirmMessageEnabled', 'confirmMessageTemplate', 'active', 'updatedAt'
+        ]);
+      allow delete: if isValidId(serviceId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /bookings/{bookingId} {
+      allow get: if isValidId(bookingId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(bookingId)
+        && isVerified()
+        && isValidBooking(incoming())
+        && exists(/databases/$(database)/documents/services/$(incoming().serviceId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(bookingId)
+        && isVerified()
+        && isValidBooking(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && (existing().status in ['agendado', 'em_andamento'] || isAdmin())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['whatsappConfirmedSent', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['whatsappOwnerNotified', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'clientName', 'clientPhone', 'serviceAddress', 'scheduledDate', 'scheduledTime', 'notes', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(bookingId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /confirmations/{confirmToken} {
+      allow get: if isValidId(confirmToken);
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(confirmToken)
+        && isVerified()
+        && isValidConfirmationTicket(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().status == 'pendente'
+        && existsAfter(/databases/$(database)/documents/bookings/$(incoming().bookingId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(confirmToken)
+        && isValidConfirmationTicket(incoming())
+        && existing().status == 'pendente'
+        && incoming().status == 'finalizado'
+        && incoming().bookingId == existing().bookingId
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(confirmToken) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /bookingRequests/{requestId} {
+      allow get: if isValidId(requestId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(requestId)
+        && isValidBookingRequest(incoming())
+        && incoming().processed == false
+        && exists(/databases/$(database)/documents/services/$(incoming().serviceId))
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(requestId)
+        && isVerified()
+        && isValidBookingRequest(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['processed']);
+      allow delete: if isValidId(requestId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /spreadsheets/{sheetId} {
+      allow get: if isValidId(sheetId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(sheetId)
+        && isVerified()
+        && isValidCustomSpreadsheet(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(sheetId)
+        && isVerified()
+        && isValidCustomSpreadsheet(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'segment', 'groupBy', 'description', 'updatedAt']);
+      allow delete: if isValidId(sheetId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+
+      match /rows/{rowId} {
+        allow get: if isValidId(sheetId) && isValidId(rowId) && isVerified()
+          && (get(/databases/$(database)/documents/spreadsheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin());
+        allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+        allow create: if isValidId(sheetId) && isValidId(rowId) && isVerified()
+          && isValidSpreadsheetRow(incoming(), sheetId)
+          && get(/databases/$(database)/documents/spreadsheets/$(sheetId)).data.ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(sheetId) && isValidId(rowId) && isVerified()
+          && isValidSpreadsheetRow(incoming(), sheetId)
+          && (get(/databases/$(database)/documents/spreadsheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin())
+          && incoming().ownerId == existing().ownerId
+          && incoming().sheetId == existing().sheetId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'categoryOrService', 'rowDate', 'description', 'clientOrContact',
+            'phone', 'address', 'amount', 'status', 'updatedAt'
+          ]);
+        allow delete: if isValidId(sheetId) && isValidId(rowId) && isVerified()
+          && (get(/databases/$(database)/documents/spreadsheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /librarySheets/{sheetId} {
+      allow get: if isValidId(sheetId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(sheetId)
+        && isVerified()
+        && isValidLibrarySheet(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(sheetId)
+        && isVerified()
+        && isValidLibrarySheet(incoming())
+        && (existing().ownerId == request.auth.uid || isAdmin())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'fileName', 'sector', 'subcategory', 'aiSummary', 'aiCategorized', 'updatedAt'
+        ]);
+      allow delete: if isValidId(sheetId) && isVerified() && (existing().ownerId == request.auth.uid || isAdmin());
+
+      match /items/{itemId} {
+        allow get: if isValidId(sheetId) && isValidId(itemId) && isVerified()
+          && (get(/databases/$(database)/documents/librarySheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin());
+        allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+        allow create: if isValidId(sheetId) && isValidId(itemId) && isVerified()
+          && isValidLibrarySheetItem(incoming(), sheetId)
+          && getAfter(/databases/$(database)/documents/librarySheets/$(sheetId)).data.ownerId == request.auth.uid
+          && incoming().createdAt == request.time;
+        allow update: if isValidId(sheetId) && isValidId(itemId) && isVerified()
+          && isValidLibrarySheetItem(incoming(), sheetId)
+          && (get(/databases/$(database)/documents/librarySheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin())
+          && incoming().ownerId == existing().ownerId
+          && incoming().sheetId == existing().sheetId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['aiCategory']);
+        allow delete: if isValidId(sheetId) && isValidId(itemId) && isVerified()
+          && (get(/databases/$(database)/documents/librarySheets/$(sheetId)).data.ownerId == request.auth.uid || isAdmin());
+      }
+    }
+  }
+}

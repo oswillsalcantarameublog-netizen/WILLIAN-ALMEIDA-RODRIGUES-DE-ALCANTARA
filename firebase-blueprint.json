@@ -1,0 +1,602 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil do prestador de serviços ou empresa proprietária das planilhas e agendamentos.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 180
+        },
+        "businessName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[0-9]{10,15}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "email", "businessName", "whatsappNumber", "createdAt", "updatedAt"]
+    },
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Perfil público sem PII para validar links públicos de agendamento.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "businessName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "businessName", "active", "createdAt", "updatedAt"]
+    },
+    "ServiceItem": {
+      "title": "ServiceItem",
+      "description": "Serviço oferecido pelo profissional ou empresa com valor e mensagem automática de confirmação.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "price": {
+          "type": "number"
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "durationMinutes": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "autoConfirmMessageEnabled": {
+          "type": "boolean"
+        },
+        "confirmMessageTemplate": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "price",
+        "category",
+        "durationMinutes",
+        "description",
+        "autoConfirmMessageEnabled",
+        "confirmMessageTemplate",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Agendamento de serviço que alimenta a planilha automática por serviço e por data.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "servicePrice": {
+          "type": "number"
+        },
+        "clientName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "clientPhone": {
+          "type": "string",
+          "maxLength": 25
+        },
+        "serviceAddress": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "scheduledDate": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["agendado", "em_andamento", "finalizado", "cancelado"]
+        },
+        "confirmToken": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "whatsappConfirmedSent": {
+          "type": "boolean"
+        },
+        "whatsappOwnerNotified": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "serviceId",
+        "serviceName",
+        "servicePrice",
+        "clientName",
+        "clientPhone",
+        "serviceAddress",
+        "scheduledDate",
+        "scheduledTime",
+        "notes",
+        "status",
+        "confirmToken",
+        "whatsappConfirmedSent",
+        "whatsappOwnerNotified",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConfirmationTicket": {
+      "title": "ConfirmationTicket",
+      "description": "Ticket público sem PII para que o cliente abra o link do WhatsApp e confirme que o serviço foi finalizado.",
+      "type": "object",
+      "properties": {
+        "bookingId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "servicePrice": {
+          "type": "number"
+        },
+        "scheduledDate": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "businessName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pendente", "finalizado"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "bookingId",
+        "ownerId",
+        "serviceName",
+        "servicePrice",
+        "scheduledDate",
+        "scheduledTime",
+        "businessName",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BookingRequest": {
+      "title": "BookingRequest",
+      "description": "Solicitação de agendamento enviada pelo cliente através do link público de agendamento.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "servicePrice": {
+          "type": "number"
+        },
+        "clientName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "clientPhone": {
+          "type": "string",
+          "maxLength": 25
+        },
+        "serviceAddress": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "scheduledDate": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "maxLength": 5,
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "processed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "serviceId",
+        "serviceName",
+        "servicePrice",
+        "clientName",
+        "clientPhone",
+        "serviceAddress",
+        "scheduledDate",
+        "scheduledTime",
+        "notes",
+        "processed",
+        "createdAt"
+      ]
+    },
+    "CustomSpreadsheet": {
+      "title": "CustomSpreadsheet",
+      "description": "Planilha profissional personalizada para empresas e autônomos.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "segment": {
+          "type": "string",
+          "enum": ["autonomo", "empresa", "servicos", "financeiro", "clientes"]
+        },
+        "groupBy": {
+          "type": "string",
+          "enum": ["nenhum", "servico", "data", "status"]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "title", "segment", "groupBy", "description", "createdAt", "updatedAt"]
+    },
+    "SpreadsheetRow": {
+      "title": "SpreadsheetRow",
+      "description": "Linha de dados de uma planilha profissional personalizada.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sheetId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "categoryOrService": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "rowDate": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "clientOrContact": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 25
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "amount": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pendente", "ativo", "concluido"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "sheetId",
+        "categoryOrService",
+        "rowDate",
+        "description",
+        "clientOrContact",
+        "phone",
+        "address",
+        "amount",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LibrarySheet": {
+      "title": "LibrarySheet",
+      "description": "Planilha anexada ou criada na biblioteca organizada por setor e categorizada por IA.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileName": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "sector": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "subcategory": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "aiSummary": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "aiCategorized": {
+          "type": "boolean"
+        },
+        "rowCount": {
+          "type": "number"
+        },
+        "totalValue": {
+          "type": "number"
+        },
+        "headers": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "fileName",
+        "sector",
+        "subcategory",
+        "aiSummary",
+        "aiCategorized",
+        "rowCount",
+        "totalValue",
+        "headers",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LibrarySheetItem": {
+      "title": "LibrarySheetItem",
+      "description": "Linha importada e categorizada pela IA dentro de uma planilha da biblioteca.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sheetId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "rowIndex": {
+          "type": "number"
+        },
+        "aiCategory": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "values": {
+          "type": "array"
+        },
+        "numericAmount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "sheetId", "rowIndex", "aiCategory", "values", "numericAmount", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Perfil privado do usuário/empresa contendo o WhatsApp configurado."
+    },
+    "/publicProfiles/{userId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Perfil público mínimo (sem PII) para validar links de agendamento."
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "#/entities/ServiceItem" },
+      "description": "Catálogo de serviços cadastrados pelo profissional ou empresa."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Agendamentos ativos e histórico para geração automática da planilha."
+    },
+    "/confirmations/{confirmToken}": {
+      "schema": { "$ref": "#/entities/ConfirmationTicket" },
+      "description": "Tickets de confirmação de conclusão acessados pelo link enviado ao cliente."
+    },
+    "/bookingRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/BookingRequest" },
+      "description": "Solicitações de agendamento recebidas via portal público."
+    },
+    "/spreadsheets/{sheetId}": {
+      "schema": { "$ref": "#/entities/CustomSpreadsheet" },
+      "description": "Planilhas profissionais criadas para empresas e autônomos."
+    },
+    "/spreadsheets/{sheetId}/rows/{rowId}": {
+      "schema": { "$ref": "#/entities/SpreadsheetRow" },
+      "description": "Linhas pertencentes a uma planilha personalizada."
+    },
+    "/librarySheets/{sheetId}": {
+      "schema": { "$ref": "#/entities/LibrarySheet" },
+      "description": "Planilhas anexadas ou criadas na biblioteca por setor com categorização por IA."
+    },
+    "/librarySheets/{sheetId}/items/{itemId}": {
+      "schema": { "$ref": "#/entities/LibrarySheetItem" },
+      "description": "Linhas da planilha da biblioteca separadas por categoria pela IA."
+    }
+  }
+}

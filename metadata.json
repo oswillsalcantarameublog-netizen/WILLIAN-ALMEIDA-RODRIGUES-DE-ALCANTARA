@@ -1,0 +1,6 @@
+{
+  "name": "PlanilhaFlow — Gestão de Serviços e Planilhas Automáticas",
+  "description": "Sistema profissional de criação e organização automática de planilhas por serviço e data, agendamentos de clientes e integração direta com WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
